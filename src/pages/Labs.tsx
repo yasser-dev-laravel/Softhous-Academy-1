@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -35,38 +34,143 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { getFromLocalStorage, saveToLocalStorage, generateId, generateCode } from "@/utils/localStorage";
-import { Lab, Branch } from "@/utils/mockData";
+import { Lab, LabInput } from "@/types/Labs";
+import { Branch } from "@/types/Branches";
 import { Laptop, Monitor, Users, MapPin, Plus, Search, Trash } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { createLab, deleteLab, getLabsPagination } from "@/utils/labsApi";
+import { getBranchesPagination } from "@/utils/branchesApi";
 
 const Labs = () => {
   const [labs, setLabs] = useState<Lab[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [formData, setFormData] = useState<Partial<Lab>>({
-    name: "",
-    location: "",
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'معمل',
     capacity: 0,
-    type: "computer",
-    branchId: "",
+    branchId: 0
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Load data from localStorage
+  // دالة لجلب المعامل
+  const fetchLabs = async () => {
+    try {
+      setIsLoading(true);
+      console.log("1. بدء عملية جلب المعامل...");
+      
+      // التحقق من التوكن
+      const token = localStorage.getItem("token");
+      console.log("2. التوكن الحالي:", token ? "موجود" : "غير موجود");
+      
+      // تجهيز معلمات الطلب
+      const requestParams = {
+        Page: 1,
+        Limit: 100,
+        SortField: "name",
+        IsDesc: false,
+        FreeText: "",
+        OnlyDeleted: false
+      };
+      console.log("3. معلمات الطلب:", requestParams);
+      
+      // إرسال الطلب
+      console.log("4. إرسال طلب جلب المعامل...");
+      const data = await getLabsPagination(requestParams);
+      console.log("5. استجابة الطلب:", data);
+      
+      // معالجة البيانات
+      if (data && Array.isArray(data.items)) {
+        console.log(`6. عدد المعامل المستلمة: ${data.items.length}`);
+        console.log("7. بيانات المعامل:", data.items);
+        setLabs(data.items);
+      } else {
+        console.error("8. تنسيق البيانات غير صحيح:", data);
+        setLabs([]);
+        toast({
+          title: "خطأ",
+          description: "تنسيق البيانات غير صحيح",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("9. حدث خطأ أثناء جلب المعامل:", error);
+      setLabs([]);
+      toast({
+        title: "خطأ",
+        description: error instanceof Error ? error.message : "فشل في جلب بيانات المعامل",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+      console.log("10. اكتملت عملية جلب المعامل");
+    }
+  };
+
+  // دالة لجلب الفروع
+  const fetchBranches = async () => {
+    try {
+      console.log("Fetching branches...");
+      const data = await getBranchesPagination({
+        Page: 1,
+        Limit: 100,
+        SortBy: "name",
+        SortDirection: "asc"
+      });
+      console.log("Branches data received in component:", data);
+      
+      if (data && data.items) {
+        console.log("Setting branches state with items:", data.items);
+        setBranches(data.items);
+      } else {
+        console.error("Invalid branches data format in component:", data);
+        setBranches([]);
+      }
+    } catch (error) {
+      console.error("Error fetching branches in component:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل في جلب بيانات الفروع",
+        variant: "destructive",
+      });
+      setBranches([]);
+    }
+  };
+
   useEffect(() => {
-    const storedLabs = getFromLocalStorage<Lab[]>("latin_academy_labs", []);
-    const storedBranches = getFromLocalStorage<Branch[]>("latin_academy_branches", []);
-    
-    setLabs(storedLabs);
-    setBranches(storedBranches);
+    const token = localStorage.getItem("token");
+    console.log("Current token in Labs component:", token);
+
+    if (!token) {
+      navigate("/Login");
+      return;
+    }
+
+    // جلب الفروع والمعامل
+    const fetchData = async () => {
+      try {
+        await fetchBranches();
+        await fetchLabs();
+      } catch (error) {
+        console.error("Error fetching data in component:", error);
+        toast({
+          title: "خطأ",
+          description: "فشل في جلب البيانات",
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchData();
   }, []);
 
   // Handle search
   const filteredLabs = labs.filter(
-    (lab) => 
-      lab.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      lab.code.toLowerCase().includes(searchTerm.toLowerCase())
+    (lab) =>
+      lab.Name && lab.Name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Handle form changes
@@ -87,69 +191,66 @@ const Labs = () => {
   };
 
   // Handle form submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.branchId) {
+    try {
+      if (!formData.name || !formData.Type || !formData.Capacity || !formData.branchId) {
+        toast({
+          title: "خطأ",
+          description: "يرجى ملء جميع الحقول المطلوبة",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await createLab(formData);
       toast({
-        title: "خطأ في البيانات",
-        description: "يرجى ملء جميع الحقول المطلوبة",
+        title: "تم بنجاح",
+        description: "تم إضافة المعمل بنجاح",
+      });
+      setIsDialogOpen(false);
+      fetchLabs();
+      setFormData({
+        name: '',
+        type: 'معمل',
+        capacity: 0,
+        branchId: 0
+      });
+    } catch (error) {
+      console.error("Error in handleSubmit:", error);
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء إضافة المعمل",
         variant: "destructive",
       });
-      return;
     }
-    
-    // Generate unique code
-    const code = generateCode("LAB", labs);
-    
-    // Create new lab
-    const newLab: Lab = {
-      id: generateId("lab-"),
-      code,
-      name: formData.name!,
-      location: formData.location || "",
-      capacity: formData.capacity || 0,
-      type: formData.type as "computer" | "language" | "general",
-      branchId: formData.branchId!,
-    };
-    
-    // Add to state and localStorage
-    const updatedLabs = [...labs, newLab];
-    setLabs(updatedLabs);
-    saveToLocalStorage("latin_academy_labs", updatedLabs);
-    
-    // Reset form and close dialog
-    setFormData({
-      name: "",
-      location: "",
-      capacity: 0,
-      type: "computer",
-      branchId: "",
-    });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "تم بنجاح",
-      description: "تم إضافة القاعة/المعمل بنجاح",
-    });
   };
 
   // Handle delete
-  const handleDelete = (id: string) => {
-    const updatedLabs = labs.filter((lab) => lab.id !== id);
-    setLabs(updatedLabs);
-    saveToLocalStorage("latin_academy_labs", updatedLabs);
-    
-    toast({
-      title: "تم بنجاح",
-      description: "تم حذف القاعة/المعمل بنجاح",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteLab(Number(id));
+      toast({
+        title: "تم بنجاح",
+        description: "تم حذف القاعة/المعمل بنجاح",
+      });
+      
+      // تحديث قائمة المعامل
+      await fetchLabs();
+    } catch (error) {
+      console.error("Error deleting lab:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل في حذف القاعة/المعمل",
+        variant: "destructive",
+      });
+    }
   };
 
   // Get branch name by ID
   const getBranchName = (branchId: string) => {
-    const branch = branches.find((b) => b.id === branchId);
-    return branch?.name || "غير معروف";
+    const branch = branches.find((b) => Number(branchId) === Number(b.Id));
+    return branch?.Name || "غير معروف";
   };
 
   // Get lab type icon and text
@@ -178,6 +279,9 @@ const Labs = () => {
     }
   };
 
+  console.log("Current labs state:", labs);
+  console.log("Filtered labs:", filteredLabs);
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex flex-col md:flex-row items-center justify-between mb-6">
@@ -204,13 +308,13 @@ const Labs = () => {
               <DialogHeader>
                 <DialogTitle>إضافة قاعة/معمل جديد</DialogTitle>
                 <DialogDescription>
-                  أدخل بيانات القاعة أو المعمل الجديد. سيتم إنشاء كود فريد تلقائياً.
+                  أدخل بيانات القاعة أو المعمل الجديد.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">اسم القاعة/المعمل *</Label>
+                    <Label htmlFor="name">اسم المعمل *</Label>
                     <Input 
                       id="name"
                       name="name"
@@ -221,17 +325,6 @@ const Labs = () => {
                     />
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="location">الموقع</Label>
-                    <Input 
-                      id="location"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleChange}
-                      placeholder="مثال: الطابق الأول"
-                    />
-                  </div>
-                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="capacity">السعة</Label>
@@ -239,7 +332,7 @@ const Labs = () => {
                         id="capacity"
                         name="capacity"
                         type="number"
-                        value={formData.capacity?.toString()}
+                        value={formData.Capacity}
                         onChange={handleChange}
                         min="0"
                       />
@@ -248,16 +341,15 @@ const Labs = () => {
                       <Label htmlFor="type">النوع *</Label>
                       <Select 
                         name="type"
-                        value={formData.type}
+                        value={formData.Type}
                         onValueChange={(value) => handleSelectChange("type", value)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="اختر النوع" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="computer">معمل كمبيوتر</SelectItem>
-                          <SelectItem value="language">معمل لغات</SelectItem>
-                          <SelectItem value="general">قاعة عامة</SelectItem>
+                          <SelectItem value="معمل">معمل</SelectItem>
+                          <SelectItem value="قاعة">قاعة</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -267,16 +359,21 @@ const Labs = () => {
                     <Label htmlFor="branchId">الفرع *</Label>
                     <Select 
                       name="branchId"
-                      value={formData.branchId}
-                      onValueChange={(value) => handleSelectChange("branchId", value)}
+                      value={formData.branchId.toString()}
+                      onValueChange={(value) => {
+                        setFormData({
+                          ...formData,
+                          branchId: parseInt(value)
+                        });
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="اختر الفرع" />
                       </SelectTrigger>
                       <SelectContent>
                         {branches.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            {branch.name}
+                          <SelectItem key={branch.Id} value={branch.Id.toString()}>
+                            {branch.Name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -307,64 +404,42 @@ const Labs = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredLabs.length > 0 ? (
+          {isLoading ? (
+            <div className="py-12 text-center text-muted-foreground">
+              جاري التحميل...
+            </div>
+          ) : (searchTerm ? filteredLabs : labs).length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>الكود</TableHead>
-                    <TableHead>الاسم</TableHead>
+                    <TableHead>الرقم</TableHead>
+                    <TableHead>اسم الغرفة</TableHead>
                     <TableHead>النوع</TableHead>
-                    <TableHead>الفرع</TableHead>
-                    <TableHead>الموقع</TableHead>
                     <TableHead>السعة</TableHead>
-                    <TableHead className="text-right">الإجراءات</TableHead>
+                    <TableHead>الفرع</TableHead>
+                    <TableHead>إجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLabs.map((lab) => {
-                    const typeInfo = getLabTypeInfo(lab.type);
-                    return (
-                      <TableRow key={lab.id}>
-                        <TableCell className="font-medium">{lab.code}</TableCell>
-                        <TableCell>{lab.name}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {typeInfo.icon}
-                            <span>{typeInfo.text}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getBranchName(lab.branchId)}</TableCell>
-                        <TableCell>
-                          {lab.location && (
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-muted-foreground" />
-                              <span>{lab.location}</span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {lab.capacity > 0 ? (
-                            <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4 text-muted-foreground" />
-                              <span>{lab.capacity} طالب</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">غير محدد</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(lab.id)}
-                          >
-                            <Trash className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {(searchTerm ? filteredLabs : labs).map((lab, idx) => (
+                    <TableRow key={lab.id ?? idx}>
+                      <TableCell>{idx + 1}</TableCell>
+                      <TableCell>{lab.Name}</TableCell>
+                      <TableCell>{lab.Type}</TableCell>
+                      <TableCell>{lab.Capacity}</TableCell>
+                      <TableCell>{lab.branchId !== undefined && lab.branchId !== null ? getBranchName(lab.branchId.toString()) : 'غير محدد'}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(lab.id)}
+                        >
+                          <Trash className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

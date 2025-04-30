@@ -50,8 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       // console.log('Login API response:', data); // لوج مؤقت لمعرفة شكل الريسبونس
       if (!data.accessToken) throw new Error("لم يتم استلام التوكن من السيرفر");
+      // حفظ التوكن في localStorage من خاصية accessToken
       localStorage.setItem("token", data.accessToken);
-      // لا يوجد /api/Auth/me في الـ API، لذا سنتخطى هذه الخطوة مؤقتاً
       setUser({ id: username, name: username, role: "admin" }); // مؤقتاً حتى يتوفر endpoint لجلب البيانات
       setIsAuthenticated(true);
       saveToLocalStorage(AUTH_STORAGE_KEY, { id: username, name: username, role: "admin" });

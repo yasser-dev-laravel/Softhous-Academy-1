@@ -129,7 +129,8 @@ const menuTranslations = {
     campaigns: "الحملات",
     booking: "الحجوزات والمدفوعات",
     settings: "الإعدادات",
-    copyright: "حقوق النشر 2025 Latin Academy"
+    copyright: "حقوق النشر 2025 Latin Academy",
+    helptables: "الجداول المساعدة"
   },
   en: {
     home: "Home",
@@ -155,7 +156,8 @@ const menuTranslations = {
     campaigns: "Campaigns",
     booking: "Booking & Payments",
     settings: "Settings",
-    copyright: "Copyright 2025 Latin Academy"
+    copyright: "Copyright 2025 Latin Academy",
+    helptables: "Help Tables"
   }
 };
 
@@ -217,7 +219,7 @@ export const Sidebar = ({ isOpen, setIsOpen, onCollapseChange }: SidebarProps) =
       </div>
       <ScrollArea className="flex-1 overflow-auto py-2">
         <div className="px-2 py-1">
-          {/* TEMP DEBUG: Show current user and role */}
+          {/* TEMP DEBUG: Show current user and role  للاختبار فقط*/}
           {user && (
             <div style={{ background: '#ffeeba', color: '#856404', padding: '4px 8px', margin: '8px 0', borderRadius: 4, fontSize: 12 }}>
               Debug: User = {user.name} | Role = {user.role}
@@ -260,20 +262,20 @@ export const Sidebar = ({ isOpen, setIsOpen, onCollapseChange }: SidebarProps) =
                 onClick={handleNavItemClick} 
                 collapsed={collapsed}
               />
-              <NavItem
+              {/* <NavItem
                 to="/receipts"
                 icon={Landmark}
                 label={t.receipts || "الإيصالات"}
                 active={isActive("/receipts")}
                 onClick={handleNavItemClick}
                 collapsed={collapsed}
-              />
+              /> */}
             </NavGroup>
           )}
           
           {user.role === "admin" && (
             <NavGroup title={t.system} icon={Users} defaultOpen={
-              isActive("/employees") || isActive("/roles")
+              isActive("/employees") || isActive("/roles") || isActive("/helptables")
             }>
               <NavItem 
                 to="/employees" 
@@ -289,6 +291,14 @@ export const Sidebar = ({ isOpen, setIsOpen, onCollapseChange }: SidebarProps) =
                 label={t.roles}
                 active={isActive("/roles")} 
                 onClick={handleNavItemClick} 
+                collapsed={collapsed}
+              />
+              <NavItem
+                to="/helptables"
+                icon={Settings}
+                label={t.helptables}
+                active={isActive("/helptables")}
+                onClick={handleNavItemClick}
                 collapsed={collapsed}
               />
             </NavGroup>

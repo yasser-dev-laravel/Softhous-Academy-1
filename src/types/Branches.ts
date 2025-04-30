@@ -1,6 +1,5 @@
 // واجهة خاصة بإدخال أو تعديل الفرع في الشاشات
-export interface BranchInput {
-  Id: string;
+export interface BranchCreateInput {
   Name: string;
   Address: string;
   AreaId: string;
@@ -9,6 +8,7 @@ export interface BranchInput {
 export interface Branch {
   Id: string;
   Name: string;
+  Code: string;
   Address: string;
   AreaId: string;
   CreatedAt: string;

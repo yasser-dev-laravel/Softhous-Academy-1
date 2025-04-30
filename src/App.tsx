@@ -24,6 +24,7 @@ import Booking from "./pages/Booking";
 import Groups from "./pages/Groups";
 import Attendance from "./pages/Attendance";
 import Settings from "./pages/Settings";
+import HelpTables from "./pages/HelpTables";
 import { initializeData } from "./utils/mockData";
 import Roles from "./pages/Roles";
 import Receipts from "./pages/Receipts";
@@ -68,6 +69,7 @@ const AuthWrapper = () => {
         <Route path="/groups" element={<Groups />} />
         <Route path="/attendance" element={<Attendance />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/helptables" element={<HelpTables />} />
         <Route path="/roles" element={<Roles />} />
         <Route path="/receipts" element={<Receipts />} />
         <Route path="*" element={<NotFound />} />
@@ -94,7 +96,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/login" element={
                 <AuthRedirect>

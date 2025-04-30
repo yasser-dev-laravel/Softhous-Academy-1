@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -27,55 +26,83 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { getFromLocalStorage, saveToLocalStorage, generateId } from "@/utils/localStorage";
-import { Employee } from "@/utils/mockData";
 import { BadgeCheck, Plus, Search, Trash } from "lucide-react";
+import { getUsersPagination, createUser, deleteUser } from "@/utils/usersApi";
 
-const Employees = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
+// تعريف واجهة المستخدم
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  emailVerified: string;
+  image: string;
+  salaryTypeId: number;
+  salaryTypeName: string;
+  salary: number;
+  phone: string;
+  address: string;
+  nationalId: string;
+  cityId: number;
+  education: string;
+  roleIds: number[];
+}
+
+const Users = () => {
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [formData, setFormData] = useState<Partial<Employee>>({
+  const [formData, setFormData] = useState<Partial<User>>({
+    id: 0,
     name: "",
-    birthDate: "",
-    nationalId: "",
-    qualification: "",
-    status: "active",
+    email: "",
+    emailVerified: "",
+    image: "",
+    salaryTypeId: 0,
+    salaryTypeName: "",
     salary: 0,
-    paymentMethod: "monthly",
-    paymentAmount: 0,
-    roleId: "",
+    phone: "",
+    address: "",
+    nationalId: "",
+    cityId: 0,
+    education: "",
+    roleIds: [],
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Load data from localStorage
+  // تحميل البيانات من API
   useEffect(() => {
-    const storedEmployees = getFromLocalStorage<Employee[]>("latin_academy_employees", []);
-    const storedRoles = getFromLocalStorage<any[]>("latin_academy_roles", []);
-    
-    setEmployees(storedEmployees);
-    setRoles(storedRoles);
-  }, []);
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // جلب المستخدمين
+        const usersResponse = await getUsersPagination({
+          Page: 1,
+          Limit: 100,
+          SortField: "name",
+          IsDesc: false,
+          FreeText: searchTerm || undefined,
+        });
+        setUsers(usersResponse.items || []);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast({
+          title: "خطأ",
+          description: "حدث خطأ أثناء جلب بيانات المستخدمين",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [searchTerm, toast]);
 
-  // Handle search
-  const filteredEmployees = employees.filter(
-    (employee) => employee.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Handle form changes
+  // معالجة تغييرات النموذج
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
-    
-    // Convert number inputs
+    // تحويل المدخلات الرقمية
     if (type === "number") {
       setFormData({ ...formData, [name]: parseFloat(value) });
     } else {
@@ -83,16 +110,10 @@ const Employees = () => {
     }
   };
 
-  // Handle select changes
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData({ ...formData, [name]: value });
-  };
-
-  // Handle form submit
-  const handleSubmit = (e: React.FormEvent) => {
+  // معالجة تقديم النموذج
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.nationalId || !formData.roleId) {
+    if (!formData.name || !formData.email) {
       toast({
         title: "خطأ في البيانات",
         description: "يرجى ملء جميع الحقول المطلوبة",
@@ -100,99 +121,130 @@ const Employees = () => {
       });
       return;
     }
-    
-    // Create new employee
-    const newEmployee: Employee = {
-      id: generateId("emp-"),
-      name: formData.name!,
-      birthDate: formData.birthDate || "",
-      nationalId: formData.nationalId!,
-      qualification: formData.qualification || "",
-      status: formData.status as "active" | "suspended" | "training" | "terminated",
-      salary: formData.salary || 0,
-      paymentMethod: formData.paymentMethod as "monthly" | "commission" | "percentage",
-      paymentAmount: formData.paymentAmount || 0,
-      roleId: formData.roleId!,
-    };
-    
-    // Add to state and localStorage
-    const updatedEmployees = [...employees, newEmployee];
-    setEmployees(updatedEmployees);
-    saveToLocalStorage("latin_academy_employees", updatedEmployees);
-    
-    // Reset form and close dialog
-    setFormData({
-      name: "",
-      birthDate: "",
-      nationalId: "",
-      qualification: "",
-      status: "active",
-      salary: 0,
-      paymentMethod: "monthly",
-      paymentAmount: 0,
-      roleId: "",
-    });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "تم بنجاح",
-      description: "تم إضافة الموظف بنجاح",
-    });
+    try {
+      setIsLoading(true);
+      // إنشاء مستخدم جديد
+      const newUser = await createUser({
+        name: formData.name!,
+        email: formData.email!,
+        emailVerified: formData.emailVerified!,
+        image: formData.image!,
+        salaryTypeId: formData.salaryTypeId!,
+        salaryTypeName: formData.salaryTypeName!,
+        salary: formData.salary!,
+        phone: formData.phone!,
+        address: formData.address!,
+        nationalId: formData.nationalId!,
+        cityId: formData.cityId!,
+        education: formData.education!,
+        roleIds: formData.roleIds!,
+      });
+      // تحديث القائمة
+      const updatedUsersResponse = await getUsersPagination({
+        Page: 1,
+        Limit: 100,
+        SortField: "name",
+        IsDesc: false,
+      });
+      setUsers(updatedUsersResponse.items || []);
+      // إعادة تعيين النموذج وإغلاق الحوار
+      setFormData({
+        id: 0,
+        name: "",
+        email: "",
+        emailVerified: "",
+        image: "",
+        salaryTypeId: 0,
+        salaryTypeName: "",
+        salary: 0,
+        phone: "",
+        address: "",
+        nationalId: "",
+        cityId: 0,
+        education: "",
+        roleIds: [],
+      });
+      setIsDialogOpen(false);
+      toast({
+        title: "تم بنجاح",
+        description: "تم إضافة المستخدم بنجاح",
+      });
+    } catch (error) {
+      console.error("Error creating user:", error);
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء إضافة المستخدم",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Handle delete
-  const handleDelete = (id: string) => {
-    const updatedEmployees = employees.filter((employee) => employee.id !== id);
-    setEmployees(updatedEmployees);
-    saveToLocalStorage("latin_academy_employees", updatedEmployees);
-    
-    toast({
-      title: "تم بنجاح",
-      description: "تم حذف الموظف بنجاح",
-    });
-  };
-
-  // Get role name by ID
-  const getRoleName = (roleId: string) => {
-    const role = roles.find((r) => r.id === roleId);
-    return role?.name || "غير معروف";
+  // معالجة الحذف
+  const handleDelete = async (id: string) => {
+    try {
+      setIsLoading(true);
+      // حذف المستخدم
+      await deleteUser(parseInt(id));
+      // تحديث القائمة
+      const updatedUsersResponse = await getUsersPagination({
+        Page: 1,
+        Limit: 100,
+        SortField: "name",
+        IsDesc: false,
+      });
+      setUsers(updatedUsersResponse.items || []);
+      toast({
+        title: "تم بنجاح",
+        description: "تم حذف المستخدم بنجاح",
+      });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء حذف المستخدم",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="p-4 md:p-8">
       <div className="flex flex-col md:flex-row items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold tracking-tight mb-4 md:mb-0">إدارة الموظفين</h2>
+        <h2 className="text-3xl font-bold tracking-tight mb-4 md:mb-0">إدارة المستخدمين</h2>
         <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
           <div className="relative w-full md:w-64">
             <Search className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="بحث عن موظف..."
+              placeholder="بحث عن مستخدم..."
               className="pr-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="w-full md:w-auto">
                 <Plus className="h-4 w-4 ml-2" />
-                إضافة موظف
+                إضافة مستخدم
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>إضافة موظف جديد</DialogTitle>
+                <DialogTitle>إضافة مستخدم جديد</DialogTitle>
                 <DialogDescription>
-                  أدخل بيانات الموظف الجديد. اضغط حفظ عند الانتهاء.
+                  أدخل بيانات المستخدم الجديد. اضغط حفظ عند الانتهاء.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name">اسم الموظف *</Label>
-                      <Input 
+                      <Label htmlFor="name">اسم المستخدم *</Label>
+                      <Input
                         id="name"
                         name="name"
                         value={formData.name}
@@ -201,100 +253,70 @@ const Employees = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="nationalId">الرقم القومي *</Label>
-                      <Input 
-                        id="nationalId"
-                        name="nationalId"
-                        value={formData.nationalId}
+                      <Label htmlFor="email">البريد الإلكتروني *</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        value={formData.email}
                         onChange={handleChange}
                         required
                       />
                     </div>
                   </div>
-                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="birthDate">تاريخ الميلاد</Label>
-                      <Input 
-                        id="birthDate"
-                        name="birthDate"
-                        type="date"
-                        value={formData.birthDate}
+                      <Label htmlFor="phone">رقم الجوال</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        value={formData.phone}
                         onChange={handleChange}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="qualification">المؤهل</Label>
-                      <Input 
-                        id="qualification"
-                        name="qualification"
-                        value={formData.qualification}
+                      <Label htmlFor="nationalId">الرقم القومي</Label>
+                      <Input
+                        id="nationalId"
+                        name="nationalId"
+                        value={formData.nationalId}
                         onChange={handleChange}
                       />
                     </div>
                   </div>
-                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="status">الحالة</Label>
-                      <Select 
-                        name="status"
-                        value={formData.status}
-                        onValueChange={(value) => handleSelectChange("status", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر حالة الموظف" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">يعمل</SelectItem>
-                          <SelectItem value="suspended">موقوف</SelectItem>
-                          <SelectItem value="training">تدريب</SelectItem>
-                          <SelectItem value="terminated">منتهي</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="address">العنوان</Label>
+                      <Input
+                        id="address"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="roleId">الدور *</Label>
-                      <Select 
-                        name="roleId"
-                        value={formData.roleId}
-                        onValueChange={(value) => handleSelectChange("roleId", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر دور الموظف" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roles.map((role) => (
-                            <SelectItem key={role.id} value={role.id}>
-                              {role.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="cityId">المدينة</Label>
+                      <Input
+                        id="cityId"
+                        name="cityId"
+                        type="number"
+                        value={formData.cityId?.toString()}
+                        onChange={handleChange}
+                      />
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="paymentMethod">طريقة الحساب</Label>
-                      <Select 
-                        name="paymentMethod"
-                        value={formData.paymentMethod}
-                        onValueChange={(value) => handleSelectChange("paymentMethod", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر طريقة الحساب" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">شهري</SelectItem>
-                          <SelectItem value="commission">عمولة</SelectItem>
-                          <SelectItem value="percentage">نسبة</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="education">التعليم</Label>
+                      <Input
+                        id="education"
+                        name="education"
+                        value={formData.education}
+                        onChange={handleChange}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="salary">المرتب</Label>
-                      <Input 
+                      <Label htmlFor="salary">الراتب</Label>
+                      <Input
                         id="salary"
                         name="salary"
                         type="number"
@@ -302,27 +324,39 @@ const Employees = () => {
                         onChange={handleChange}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="paymentAmount">قيمة الحساب</Label>
-                      <Input 
-                        id="paymentAmount"
-                        name="paymentAmount"
-                        type="number"
-                        value={formData.paymentAmount?.toString()}
-                        onChange={handleChange}
-                      />
-                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salaryTypeId">نوع الراتب</Label>
+                    <Input
+                      id="salaryTypeId"
+                      name="salaryTypeId"
+                      type="number"
+                      value={formData.salaryTypeId?.toString()}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salaryTypeName">اسم نوع الراتب</Label>
+                    <Input
+                      id="salaryTypeName"
+                      name="salaryTypeName"
+                      value={formData.salaryTypeName}
+                      onChange={handleChange}
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => setIsDialogOpen(false)}
+                    disabled={isLoading}
                   >
                     إلغاء
                   </Button>
-                  <Button type="submit">حفظ</Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "جاري الحفظ..." : "حفظ"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -332,47 +366,53 @@ const Employees = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>قائمة الموظفين</CardTitle>
+          <CardTitle>قائمة المستخدمين</CardTitle>
           <CardDescription>
-            إدارة بيانات الموظفين وأدوارهم في النظام
+            إدارة بيانات المستخدمين في النظام
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredEmployees.length > 0 ? (
+          {isLoading ? (
+            <div className="py-12 text-center text-muted-foreground">
+              جاري تحميل البيانات...
+            </div>
+          ) : users.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>الاسم</TableHead>
+                    <TableHead>البريد الإلكتروني</TableHead>
+                    <TableHead>رقم الجوال</TableHead>
                     <TableHead>الرقم القومي</TableHead>
-                    <TableHead>المؤهل</TableHead>
-                    <TableHead>الدور</TableHead>
-                    <TableHead>الحالة</TableHead>
+                    <TableHead>العنوان</TableHead>
+                    <TableHead>المدينة</TableHead>
+                    <TableHead>التعليم</TableHead>
+                    <TableHead>الراتب</TableHead>
+                    <TableHead>نوع الراتب</TableHead>
+                    <TableHead>اسم نوع الراتب</TableHead>
                     <TableHead className="text-right">الإجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEmployees.map((employee) => (
-                    <TableRow key={employee.id}>
-                      <TableCell className="font-medium">{employee.name}</TableCell>
-                      <TableCell>{employee.nationalId}</TableCell>
-                      <TableCell>{employee.qualification}</TableCell>
-                      <TableCell>{getRoleName(employee.roleId)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <BadgeCheck className="h-4 w-4 text-green-500" />
-                          <span>
-                            {employee.status === "active" ? "يعمل" : 
-                             employee.status === "suspended" ? "موقوف" : 
-                             employee.status === "training" ? "تدريب" : "منتهي"}
-                          </span>
-                        </div>
-                      </TableCell>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>{user.phone}</TableCell>
+                      <TableCell>{user.nationalId}</TableCell>
+                      <TableCell>{user.address}</TableCell>
+                      <TableCell>{user.cityId}</TableCell>
+                      <TableCell>{user.education}</TableCell>
+                      <TableCell>{user.salary}</TableCell>
+                      <TableCell>{user.salaryTypeId}</TableCell>
+                      <TableCell>{user.salaryTypeName}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(employee.id)}
+                          onClick={() => handleDelete(user.id.toString())}
+                          disabled={isLoading}
                         >
                           <Trash className="h-4 w-4 text-destructive" />
                         </Button>
@@ -384,7 +424,7 @@ const Employees = () => {
             </div>
           ) : (
             <div className="py-12 text-center text-muted-foreground">
-              لم يتم العثور على موظفين. قم بإضافة موظفين جدد.
+              لم يتم العثور على مستخدمين. قم بإضافة مستخدمين جدد.
             </div>
           )}
         </CardContent>
@@ -393,4 +433,4 @@ const Employees = () => {
   );
 };
 
-export default Employees;
+export default Users;

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -28,99 +27,133 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { getFromLocalStorage, saveToLocalStorage, generateId, generateCode } from "@/utils/localStorage";
-import { Department } from "@/utils/mockData";
-import { FolderOpen, Plus, Search, Trash } from "lucide-react";
+import { Category, CategoryCreateInput } from "@/types/Categories";
+import {
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getCategory,
+  getCategoriesPagination
+} from "@/utils/categoriesApi";
+import { Search, Trash, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-const Departments = () => {
-  const [departments, setDepartments] = useState<Department[]>([]);
+const Categories = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [formData, setFormData] = useState<Partial<Department>>({
+  const [formData, setFormData] = useState<CategoryCreateInput>({
     name: "",
+    description: "",
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Load data from localStorage
+  // دالة لجلب التصنيفات
+  const fetchCategories = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getCategoriesPagination({ Page: 1, Limit: 100 });
+      if (data && data.items) {
+        setCategories(data.items);
+      } else {
+        setCategories([]);
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      setCategories([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const storedDepartments = getFromLocalStorage<Department[]>("latin_academy_departments", []);
-    setDepartments(storedDepartments);
+    const token = localStorage.getItem("token");
+    console.log("Current token in Categories component:", token);
+
+    if (!token) {
+      navigate("/Login");
+      return;
+    }
+
+    // جلب التصنيفات
+    const fetchData = async () => {
+      try {
+        await fetchCategories();
+      } catch (error) {
+        console.error("Error fetching data in component:", error);
+        toast({
+          title: "خطأ",
+          description: "فشل في جلب البيانات",
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchData();
   }, []);
 
-  // Handle search
-  const filteredDepartments = departments.filter(
-    (department) => 
-      department.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      department.code.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredCategories = categories.filter(
+    (category) =>
+      category.name && category.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Handle form changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
-  // Handle form submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name) {
-      toast({
-        title: "خطأ في البيانات",
-        description: "يرجى إدخال اسم القسم",
-        variant: "destructive",
-      });
+    // التحقق من الحقول المطلوبة
+    const validationErrors = [];
+    if (!formData.name) validationErrors.push("اسم التصنيف مطلوب");
+    if (!formData.description) validationErrors.push("الوصف مطلوب");
+    if (validationErrors.length) {
+      toast({ title: "خطأ", description: validationErrors.join("\n"), variant: "destructive" });
       return;
     }
-    
-    // Generate unique code
-    const code = generateCode("DEP", departments);
-    
-    // Create new department
-    const newDepartment: Department = {
-      id: generateId("dept-"),
-      code,
-      name: formData.name,
-    };
-    
-    // Add to state and localStorage
-    const updatedDepartments = [...departments, newDepartment];
-    setDepartments(updatedDepartments);
-    saveToLocalStorage("latin_academy_departments", updatedDepartments);
-    
-    // Reset form and close dialog
-    setFormData({
-      name: "",
-    });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "تم بنجاح",
-      description: "تم إضافة القسم بنجاح",
-    });
+    try {
+      await createCategory(formData);
+      fetchCategories();
+      setIsDialogOpen(false);
+      setFormData({ name: "", description: "" });
+      toast({ title: "تم إضافة التصنيف بنجاح" });
+    } catch (error) {
+      toast({ title: "خطأ", description: "فشل في إضافة التصنيف", variant: "destructive" });
+    }
   };
 
-  // Handle delete
-  const handleDelete = (id: string) => {
-    const updatedDepartments = departments.filter((department) => department.id !== id);
-    setDepartments(updatedDepartments);
-    saveToLocalStorage("latin_academy_departments", updatedDepartments);
-    
-    toast({
-      title: "تم بنجاح",
-      description: "تم حذف القسم بنجاح",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCategory(Number(id));
+      toast({
+        title: "تم بنجاح",
+        description: "تم حذف التصنيف بنجاح",
+      });
+      
+      // تحديث قائمة التصنيفات
+      await fetchCategories();
+    } catch (error) {
+      console.error("Error in handleDelete:", error);
+      toast({
+        title: "خطأ",
+        description: error instanceof Error ? error.message : "فشل في حذف التصنيف",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <div className="p-4 md:p-8">
       <div className="flex flex-col md:flex-row items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold tracking-tight mb-4 md:mb-0">إدارة الأقسام</h2>
+        <h2 className="text-3xl font-bold tracking-tight mb-4 md:mb-0">إدارة التصنيفات</h2>
         <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
           <div className="relative w-full md:w-64">
             <Search className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="بحث عن قسم..."
+              placeholder="بحث عن تصنيف..."
               className="pr-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -131,26 +164,38 @@ const Departments = () => {
             <DialogTrigger asChild>
               <Button className="w-full md:w-auto">
                 <Plus className="h-4 w-4 ml-2" />
-                إضافة قسم
+                إضافة تصنيف
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>إضافة قسم جديد</DialogTitle>
+                <DialogTitle>إضافة تصنيف جديد</DialogTitle>
                 <DialogDescription>
-                  أدخل اسم القسم الجديد. سيتم إنشاء كود فريد تلقائياً.
+                  أدخل بيانات التصنيف الجديد.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">اسم القسم *</Label>
+                    <Label htmlFor="name">اسم التصنيف *</Label>
                     <Input 
                       id="name"
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
-                      placeholder="مثال: اللغة الإنجليزية"
+                      placeholder="مثال: تصنيف رئيسي"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="description">الوصف *</Label>
+                    <Input 
+                      id="description"
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                      placeholder="مثال: وصف التصنيف"
                       required
                     />
                   </div>
@@ -173,37 +218,36 @@ const Departments = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>قائمة الأقسام</CardTitle>
+          <CardTitle>قائمة التصنيفات</CardTitle>
           <CardDescription>
-            إدارة أقسام الأكاديمية والتخصصات المختلفة
+            إدارة التصنيفات
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredDepartments.length > 0 ? (
+          {isLoading ? (
+            <div className="py-12 text-center text-muted-foreground">
+              جاري التحميل...
+            </div>
+          ) : filteredCategories.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>الكود</TableHead>
-                    <TableHead>اسم القسم</TableHead>
+                    <TableHead>اسم التصنيف</TableHead>
+                    <TableHead>الوصف</TableHead>
                     <TableHead className="text-right">الإجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDepartments.map((department) => (
-                    <TableRow key={department.id}>
-                      <TableCell className="font-medium">{department.code}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-primary" />
-                          <span>{department.name}</span>
-                        </div>
-                      </TableCell>
+                  {filteredCategories.map((category) => (
+                    <TableRow key={category.id}>
+                      <TableCell>{category.name}</TableCell>
+                      <TableCell>{category.description}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(department.id)}
+                          onClick={() => handleDelete(category.id)}
                         >
                           <Trash className="h-4 w-4 text-destructive" />
                         </Button>
@@ -215,7 +259,7 @@ const Departments = () => {
             </div>
           ) : (
             <div className="py-12 text-center text-muted-foreground">
-              لم يتم العثور على أقسام. قم بإضافة أقسام جديدة.
+              لم يتم العثور على تصنيفات. قم بإضافة تصنيفات جديدة.
             </div>
           )}
         </CardContent>
@@ -224,4 +268,4 @@ const Departments = () => {
   );
 };
 
-export default Departments;
+export default Categories;

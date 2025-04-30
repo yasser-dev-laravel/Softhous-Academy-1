@@ -1,11 +1,16 @@
-// واجهة خاصة بإدخال أو تعديل القسم في الشاشات
-export interface DepartmentInput {
-  Code: string;
-  Name: string;
+// واجهة خاصة بإدخال أو تعديل التصنيف في الشاشات
+export interface CategoryInput {
+  name: string;
+  description: string;
 }
 
-export interface Department {
-  Id: string;
-  Code: string;
-  Name: string;
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface CategoryCreateInput {
+  name: string;
+  description: string;
 }

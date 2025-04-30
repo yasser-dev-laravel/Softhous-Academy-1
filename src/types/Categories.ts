@@ -1,8 +1,10 @@
 export interface Category {
-  Id: string;
-  Name: string;
-  Description: string;
-  CreatedAt: string;
-  UpdatedAt: string;
-  DeletedAt?: string;
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface CategoryCreateInput {
+  name: string;
+  description: string;
 }

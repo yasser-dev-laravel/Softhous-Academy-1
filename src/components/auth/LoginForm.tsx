@@ -86,7 +86,8 @@ const LoginForm = () => {
                 id="username"
                 type="text"
                 placeholder="admin"
-                value={username}
+                // value={"root"}
+                value={username }
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
                 required
@@ -99,7 +100,8 @@ const LoginForm = () => {
                 id="password"
                 type="password"
                 placeholder="admin123"
-                value={password}
+                // value={"Root@12345"}
+                value={password }
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 required
