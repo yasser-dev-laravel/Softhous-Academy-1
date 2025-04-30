@@ -81,13 +81,12 @@ const Courses = () => {
       setCourses((coursesRes?.items || []).map((course: any) => ({
   ...course,
   levels: (course.levels || course.Levels || []).map((level: any) => ({
-    id: level.Id || level.id || '',
-    code: level.Code || level.code || '',
-    description: level.Description || level.description || '',
-    price: level.Price || level.price || 0,
-    sessionsCount: level.SessionsCount || level.sessionsCount || 0,
-    name: level.Name || level.name || ''
-  }))
+  id: level.id || level.Id || 0,
+  description: level.description || level.Description || '',
+  price: Number(level.price ?? level.Price) || 0,
+  sessionsCount: Number(level.sessionsCount ?? level.SessionsCount) || 0,
+  name: level.name || level.Name || ''
+}))
 })));
       // اطبع الكورسات بعد تحويلهم
       const formattedCourses = (coursesRes?.items || []).map((course: any) => ({
@@ -175,20 +174,39 @@ const Courses = () => {
     setLoading(true);
     try {
       // تحقق من صلاحية جميع المستويات
-      const invalidLevelIdx = (courseFormData.levels || []).findIndex((level: any) =>
-        !level.name ||
-        level.sessionsCount === undefined || level.sessionsCount === '' || isNaN(Number(level.sessionsCount)) ||
-        level.price === undefined || level.price === '' || isNaN(Number(level.price))
-      );
-      if (invalidLevelIdx !== -1) {
-        toast({
-          title: "خطأ في بيانات المستوى",
-          description: `يرجى التأكد من تعبئة جميع بيانات المستويات بشكل صحيح (الاسم، السعر، عدد الجلسات). هناك خطأ في المستوى رقم ${invalidLevelIdx + 1}.`,
-          variant: "destructive"
-        });
-        setLoading(false);
-        return;
-      }
+      const levels = courseFormData.levels || [];
+levels.forEach((level: any, idx: number) => {
+  if (!level.name) {
+    console.warn(`مستوى رقم ${idx + 1}: الاسم فارغ`);
+  }
+  if (level.sessionsCount === undefined || level.sessionsCount === '' || isNaN(Number(level.sessionsCount))) {
+    console.warn(`مستوى رقم ${idx + 1}: عدد الجلسات غير صحيح (${level.sessionsCount})`);
+  }
+  if (level.price === undefined || level.price === '' || isNaN(Number(level.price))) {
+    console.warn(`مستوى رقم ${idx + 1}: السعر غير صحيح (${level.price})`);
+  }
+  console.log(`بيانات مستوى رقم ${idx + 1}:`, level);
+});
+const invalidLevelIdx = levels.findIndex((level: any) =>
+  !level.name ||
+  level.sessionsCount === undefined || level.sessionsCount === '' || isNaN(Number(level.sessionsCount)) ||
+  level.price === undefined || level.price === '' || isNaN(Number(level.price))
+);
+if (invalidLevelIdx !== -1) {
+  const level = levels[invalidLevelIdx];
+  let reason = '';
+  if (!level.name) reason += 'الاسم فارغ. ';
+  if (level.sessionsCount === undefined || level.sessionsCount === '' || isNaN(Number(level.sessionsCount))) reason += 'عدد الجلسات غير صحيح. ';
+  if (level.price === undefined || level.price === '' || isNaN(Number(level.price))) reason += 'السعر غير صحيح. ';
+  console.error(`خطأ في المستوى رقم ${invalidLevelIdx + 1}: ${reason}`);
+  toast({
+    title: "خطأ في بيانات المستوى",
+    description: `يرجى التأكد من تعبئة جميع بيانات المستويات بشكل صحيح (الاسم، السعر، عدد الجلسات). هناك خطأ في المستوى رقم ${invalidLevelIdx + 1}. ${reason}`,
+    variant: "destructive"
+  });
+  setLoading(false);
+  return;
+}
       console.log('levels before submit:', courseFormData.levels);
       const payload = {
         id: courseFormData.id || 0,
@@ -218,11 +236,11 @@ const Courses = () => {
       setCourses((coursesRes?.items || []).map((course: any) => ({
   ...course,
   levels: (course.levels || course.Levels || []).map((level: any) => ({
-    id: level.Id || level.id || '',
-    description: level.Description || level.description || '',
-    price: level.Price || level.price || 0,
-    sessionsCount: level.SessionsCount || level.sessionsCount || 0,
-    name: level.Name || level.name || ''
+    id: level.id || 0,
+    description: level.description || '',
+    price: level.price || 0,
+    sessionsCount: level.sessionsCount || 0,
+    name: level.name || ''
   }))
 })));
       setIsCourseDialogOpen(false);
@@ -253,11 +271,11 @@ const Courses = () => {
       setCourses((coursesRes?.items || []).map((course: any) => ({
   ...course,
   levels: (course.levels || course.Levels || []).map((level: any) => ({
-    id: level.Id || level.id || '',
-    description: level.Description || level.description || '',
-    price: level.Price || level.price || 0,
-    sessionsCount: level.SessionsCount || level.sessionsCount || 0,
-    name: level.Name || level.name || ''
+    id: level.id || 0,
+    description: level.description || '',
+    price: level.price || 0,
+    sessionsCount: level.sessionsCount || 0,
+    name: level.name || ''
   }))
 })));
     } catch {
@@ -268,25 +286,42 @@ const Courses = () => {
   };
 
   const getDepartmentName = (categoryId: string) => {
-    const department = departments.find((d) => d.Id === categoryId);
+    const department = departments.find((d) => d.id === categoryId);
     return department?.Name || "غير معروف";
   };
 
   // إضافة مستوى جديد
   const handleAddLevelInCourse = () => {
-    const currentLevels = courseFormData.levels || [];
-    const newLevel = {
-      id: 0,
-      name: '',
-      description: '',
-      price: 0,
-      sessionsCount: 0,
-    };
-    setCourseFormData({
-      ...courseFormData,
-      levels: [...currentLevels, newLevel],
-    });
+  const currentLevels = courseFormData.levels || [];
+  // إذا كان هناك مستوى واحد على الأقل، تحقق أن الأخير مكتمل
+  if (currentLevels.length > 0) {
+    const last = currentLevels[currentLevels.length - 1];
+    let reason = '';
+    if (last.name === '') reason += 'الاسم فارغ. ';
+    if (last.sessionsCount === undefined || last.sessionsCount === '' || isNaN(Number(last.sessionsCount))) reason += 'عدد الجلسات غير صحيح. ';
+    if (last.price === undefined || last.price === '' || isNaN(Number(last.price))) reason += 'السعر غير صحيح. ';
+    if (reason) {
+      console.warn('لا يمكن إضافة مستوى جديد لأن المستوى السابق غير مكتمل:', reason);
+      toast({
+        title: 'اكمل بيانات المستوى السابق',
+        description: `لا يمكن إضافة مستوى جديد حتى تكمل جميع بيانات المستوى السابق. ${reason}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+  }
+  const newLevel = {
+    id: 0,
+    name: `المستوي ${currentLevels.length + 1}`,
+    description: '',
+    price: 0,
+    sessionsCount: 0,
   };
+  setCourseFormData({
+    ...courseFormData,
+    levels: [...currentLevels, newLevel],
+  });
+};
 
   // تعديل بيانات مستوى
   const handleCourseLevelChange = (idx: number, field: string, value: any) => {
@@ -303,13 +338,13 @@ const Courses = () => {
   };
 
   const handleEditCourse = (course: any) => {
-    setEditCourseId(course.Id);
+    setEditCourseId(course.id);
     setCourseFormData({
-      id: course.Id,
-      name: course.Name,
+      id: course.id,
+      name: course.name,
       description: course.description,
       isActive: course.isActive,
-      categoryId: course.CategoryId,
+      categoryId: course.categoryId,
       levels: course.Levels || [],
     });
     setIsCourseDialogOpen(true);
@@ -382,15 +417,9 @@ const Courses = () => {
     <span className="text-xs flex items-center">
       <span className="font-medium ml-1">القسم:</span> {getDepartmentName(course.categoryId)}
     </span>
-    <span className="text-xs flex items-center">
-      <span className="font-medium ml-1">المدة الإجمالية:</span> {course.total || 0} ساعة
-    </span>
-    <span className="text-xs flex items-center">
-      <span className="font-medium ml-1">السعر الإجمالي:</span> {course.total || 0} جنيه
-    </span>
   </span>
   {course.description && (
-    <p className="mt-2 text-sm">{course.description}</p>
+    <span className="mt-2 text-sm block">{course.description}</span>
   )}
 </CardDescription>
               </CardHeader>
@@ -507,8 +536,8 @@ const Courses = () => {
       placeholder=""
     />
     <Input
-      name="LevelName"
-      value={level.name || 'المستوي ' + (idx + 1)}
+      name="name"
+      value={level.name}
       onChange={e => handleCourseLevelChange(idx, 'name', e.target.value)}
       className="w-24 text-center"
       placeholder=""
